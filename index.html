@@ -198,35 +198,36 @@
           dark[x] = lum < threshold
         }
 
+        // Iterate in traversal direction to avoid mirroring:
         const zig = Math.floor(row / lineSpacing) % 2 === 1
-        // scan in chosen direction
-        let x = 0
-        while(x < off.width){
-          if(!dark[x]){ x++; continue }
+        let x = zig ? off.width - 1 : 0
+        const step = zig ? -1 : 1
+
+        while(x >= 0 && x < off.width){
+          if(!dark[x]){ x += step; continue }
           let start = x
-          while(x < off.width && dark[x]) x++
-          let end = x - 1
+          while(x >= 0 && x < off.width && dark[x]) x += step
+          let end = x - step // last dark pixel in traversal order
 
-          // map coordinates if zigzag
-          let realStart = zig ? (off.width - 1 - start) : start
-          let realEnd = zig ? (off.width - 1 - end) : end
+          // Coordinates are actual pixel indices; do NOT mirror them.
+          const xStart_mm = start * mmPerPixel
+          const xEnd_mm = end * mmPerPixel
 
-          const xStart_mm = (realStart) * mmPerPixel
-          const xEnd_mm = (realEnd) * mmPerPixel
-
-          // move to start (rapid)
+          // Move to start (rapid)
           lines.push('G0 X' + xStart_mm.toFixed(3) + ' Y' + y_mm.toFixed(3))
           if(mode === 'laser') lines.push('M3 ; laser ON')
           else lines.push(';PEN_DOWN')
-          // cut/engrave move
-          lines.push('G1 X' + xEnd_mm.toFixed(003) + ' Y' + y_mm.toFixed(3) + ' F' + feedrate)
+          // Engrave/mark move (G1) from start->end (preserves traversal direction)
+          lines.push('G1 X' + xEnd_mm.toFixed(3) + ' Y' + y_mm.toFixed(3) + ' F' + feedrate)
           if(mode === 'laser') lines.push('M5 ; laser OFF')
           else lines.push(';PEN_UP')
 
-          // draw preview stroke
+          // draw preview stroke: draw between the min/max for visual clarity
+          const drawStart = Math.min(start, end)
+          const drawEnd = Math.max(start, end)
           pctx.beginPath()
-          pctx.moveTo((realStart)*scaleX + 0.5, row*scaleY + 0.5)
-          pctx.lineTo((realEnd)*scaleX + 0.5, row*scaleY + 0.5)
+          pctx.moveTo(drawStart*scaleX + 0.5, row*scaleY + 0.5)
+          pctx.lineTo(drawEnd*scaleX + 0.5, row*scaleY + 0.5)
           pctx.stroke()
         }
       }
